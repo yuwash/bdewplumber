@@ -1,3 +1,5 @@
+> 🗄️ Archived: This was previously an attempt in the very infancy for parsing BDEW documents, but since I noticed that such a set of tools already exist here published by @Hochfrequenz such as [this one](https://github.com/Hochfrequenz/edi_energy_scraper) for MIG documents, I’m discontinuing this.
+
 # A Python Django template on Gitpod
 
 This is a [Python Django](https://www.djangoproject.com) template configured for ephemeral development environments on [Gitpod](https://www.gitpod.io/).
