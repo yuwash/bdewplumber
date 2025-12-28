@@ -2,7 +2,7 @@
   import { onMount } from 'svelte'
   import puter from '@heyputer/puter.js'
 
-  type TabId = 'kv' | 'fs' | 'os' | 'ai' | 'ui'
+  type TabId = 'kv' | 'fs' | 'os' | 'ai' | 'ui' | 'bdew'
 
   let activeTab: TabId = 'kv'
 
@@ -11,7 +11,8 @@
     { id: 'fs', label: 'File system', description: 'Read and write a demo file' },
     { id: 'os', label: 'OS', description: 'User profile + version info' },
     { id: 'ai', label: 'AI chat', description: 'Prompt Puter AI and see replies' },
-    { id: 'ui', label: 'UI helpers', description: 'File picker example' }
+    { id: 'ui', label: 'UI helpers', description: 'File picker example' },
+    { id: 'bdew', label: 'Parse BDEW EBD', description: 'Parse BDEW EBD files' }
   ]
 
   const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
@@ -283,6 +284,13 @@
         <div class="callout">
           <strong>Last UI result</strong>
           <p>{uiResult}</p>
+        </div>
+      </section>
+    {:else if activeTab === 'bdew'}
+      <section class="card stack">
+        <div class="stack">
+          <h2>Parse BDEW EBD</h2>
+          <p>Parse BDEW EBD files.</p>
         </div>
       </section>
     {/if}
