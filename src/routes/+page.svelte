@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import puter from '@heyputer/puter.js'
+  import { handleWordFile } from '../lib/bdewEBD';
 
   type TabId = 'kv' | 'fs' | 'os' | 'ai' | 'ui' | 'bdew'
 
@@ -143,6 +144,20 @@
     } finally {
       aiLoading = false
     }
+  }
+
+  // BDEW
+  let bdewStatus = 'Idle'
+  const handleFileUpload = async (event: Event) => {
+    const target = event.target as HTMLInputElement
+    const file = target.files?.[0]
+    if (!file) {
+      bdewStatus = 'No file selected'
+      return
+    }
+
+    bdewStatus = 'Reading file...'
+    bdewStatus = await handleWordFile(file)
   }
 </script>
 
@@ -292,6 +307,10 @@
           <h2>Parse BDEW EBD</h2>
           <p>Parse BDEW EBD files.</p>
         </div>
+        <div class="actions">
+          <input type="file" accept=".docx" on:change={handleFileUpload} />
+        </div>
+        <p class="status">Status: {bdewStatus}</p>
       </section>
     {/if}
   </main>
