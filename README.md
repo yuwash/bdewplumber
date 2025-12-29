@@ -1,18 +1,9 @@
-# sv
+# Parse BDEW EBD
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
-
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project in the current directory
-npx sv create
-
-# create a new project in my-app
-npx sv create my-app
-```
+Get the Entscheidungsbaumdiagramm Word file (docx) from https://bdew-mako.de and parse it right in the browser.
+Planning to use puter features but not yet there.
+The parsing itself seems to work for some/most cases.
+Tested with “Entscheidungsbaum-Diagramme und Codelisten 4.1 - informatorische Lesefassung - konsolidierte Lesefassung mit Fehlerkorrekturen Stand: 23.06.2025”.
 
 ## Developing
 
