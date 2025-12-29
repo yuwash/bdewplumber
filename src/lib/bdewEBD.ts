@@ -89,33 +89,27 @@ export function extractEbdTitlesWithParser(xml: string): EbdTitle[] {
 }
 
 /**
- * Extrahiert NUR Texte aus w:t Elementen und ignoriert Attribute sowie Metadaten.
+ * Robuste Textextraktion: Behandelt Zahlen, Strings und verschachtelte w:t
  */
 function extractTextFromParsedObject(obj: any): string {
-  if (!obj || typeof obj !== 'object') return "";
-
+  if (!obj) return "";
+  if (typeof obj === 'string' || typeof obj === 'number') return String(obj);
+  
   let text = "";
-
-  // Falls es ein Array ist (kommt bei w:r oder w:t oft vor), rekursiv durchlaufen
   if (Array.isArray(obj)) {
     return obj.map(item => extractTextFromParsedObject(item)).join("");
   }
 
-  // GEZIELTE SUCHE:
-  // 1. Wenn wir direkt ein w:t finden
-  if (obj['w:t']) {
+  if (obj['w:t'] !== undefined) {
     const wt = obj['w:t'];
-    // w:t kann ein String, ein Array von Strings oder ein Objekt mit #text sein
-    if (typeof wt === 'string') {
-      text += wt;
-    } else if (Array.isArray(wt)) {
-      text += wt.map(t => (typeof t === 'string' ? t : t['#text'] || '')).join("");
-    } else if (wt && wt['#text']) {
-      text += wt['#text'];
+    if (Array.isArray(wt)) {
+      text += wt.map(t => (typeof t === 'object' ? t['#text'] || '' : String(t))).join("");
+    } else {
+      text += (typeof wt === 'object' ? wt['#text'] || '' : String(wt));
     }
   } 
   
-  // 2. Weitersuchen in Unterelementen, aber Attribute (@_) ignorieren
+  // Rekursion für Kinder, Attribute ignorieren
   Object.keys(obj).forEach(key => {
     if (key !== 'w:t' && !key.startsWith('@_')) {
       text += extractTextFromParsedObject(obj[key]);
@@ -124,3 +118,64 @@ function extractTextFromParsedObject(obj: any): string {
 
   return text;
 }
+
+export type CheckStep = {
+  stepNr: string;
+  description: string;
+};
+
+/**
+ * Extrahiert Prüfschritte aus der Tabelle eines EbdTitle.
+ */
+export function extractCheckSteps(xml: string, ebd: EbdTitle): CheckStep[] {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    textNodeName: '#text',
+    // Wichtig: Diese Elemente immer als Array behandeln
+    arrayMode: (tagName) => ['w:tr', 'w:tc', 'w:r', 'w:t'].includes(tagName)
+  });
+
+  const checkSteps: CheckStep[] = [];
+
+  // 1. Tabelle im XML finden via paraId
+  const idMarker = `w14:paraId="${ebd.paraId}"`;
+  const idPos = xml.indexOf(idMarker);
+  if (idPos === -1) return [];
+
+  const tableStart = xml.lastIndexOf('<w:tbl', idPos);
+  const tableEnd = xml.indexOf('</w:tbl>', idPos);
+  if (tableStart === -1 || tableEnd === -1) return [];
+
+  const tableXml = xml.substring(tableStart, tableEnd + 8);
+
+  try {
+    const parsed = parser.parse(tableXml);
+    // Flexible Pfadsuche für die Zeilen
+    const rows = parsed['w:tbl']?.[0]?.['w:tr'] || parsed['w:tbl']?.['w:tr'] || parsed['w:tr'] || [];
+
+    // 2. Ab der dritten Zeile (Index 2) iterieren
+    for (let i = 2; i < rows.length; i++) {
+      const row = rows[i];
+      const cells = row['w:tc'] || [];
+
+      if (cells.length >= 2) {
+        const nrText = extractTextFromParsedObject(cells[0]).trim();
+        const descText = extractTextFromParsedObject(cells[1]).trim();
+
+        // Nur hinzufügen, wenn entweder eine Nummer oder eine Beschreibung existiert
+        if (nrText || descText) {
+          checkSteps.push({
+            stepNr: nrText,
+            description: descText
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.error(`Fehler beim Extrahieren der Schritte für ${ebd.title}:`, e);
+  }
+
+  return checkSteps;
+}
+
