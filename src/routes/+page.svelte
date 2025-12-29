@@ -3,16 +3,11 @@
   import puter from '@heyputer/puter.js'
   import { handleWordFile, type EbdTitle, type CheckStep } from '../lib/bdewEBD';
 
-  type TabId = 'kv' | 'fs' | 'os' | 'ai' | 'ui' | 'bdew'
+  type TabId = 'bdew'
 
-  let activeTab: TabId = 'kv'
+  let activeTab: TabId = 'bdew'
 
   const tabs = [
-    { id: 'kv', label: 'KV store', description: 'Get/set and increment counters' },
-    { id: 'fs', label: 'File system', description: 'Read and write a demo file' },
-    { id: 'os', label: 'OS', description: 'User profile + version info' },
-    { id: 'ai', label: 'AI chat', description: 'Prompt Puter AI and see replies' },
-    { id: 'ui', label: 'UI helpers', description: 'File picker example' },
     { id: 'bdew', label: 'Parse BDEW EBD', description: 'Parse BDEW EBD files' }
   ]
 
@@ -31,122 +26,6 @@
       if (typeof first === 'string') return first
     }
     return JSON.stringify(content ?? response, null, 2)
-  }
-
-  const getDemoPath = () => {
-    if (puter.appDataPath && puter.path?.join) {
-      return puter.path.join(puter.appDataPath, 'puterjs-demo.txt')
-    }
-    return 'puterjs-demo.txt'
-  }
-
-  // KV
-  let kvCount: number | undefined = undefined
-  onMount(async () => {
-    try {
-      const counter = await puter.kv.get<number>('testCounter')
-      kvCount = counter || 0
-    } catch {
-      kvCount = 0
-    }
-  })
-
-  const incrementKv = async () => {
-    kvCount = (kvCount || 0) + 1
-    await puter.kv.incr('testCounter', 1)
-  }
-
-  const decrementKv = async () => {
-    kvCount = (kvCount || 0) - 1
-    await puter.kv.decr('testCounter', 1)
-  }
-
-  // FS
-  const demoPath = getDemoPath()
-  let fsStatus = 'Idle'
-  let fsContents = ''
-
-  const writeFile = async () => {
-    fsStatus = 'Writing sample file...'
-    try {
-      await puter.fs.write(demoPath, `Hello from Puter.js at ${new Date().toISOString()}`)
-      fsStatus = `Wrote sample text to ${demoPath}`
-    } catch (error) {
-      fsStatus = `Write failed: ${getErrorMessage(error)}`
-    }
-  }
-
-  const readFile = async () => {
-    fsStatus = 'Reading file...'
-    try {
-      const blob = await puter.fs.read(demoPath)
-      fsContents = await blob.text()
-      fsStatus = 'Read succeeded'
-    } catch (error) {
-      fsStatus = `Read failed: ${getErrorMessage(error)}`
-    }
-  }
-
-  // OS
-  let osStatus = 'Idle'
-  let userInfo: Record<string, unknown> | null = null
-  let versionInfo: Record<string, unknown> | null = null
-
-  const fetchUser = async () => {
-    osStatus = 'Fetching user...'
-    try {
-      const user = await puter.os.user()
-      userInfo = user
-      osStatus = 'User info loaded'
-    } catch (error) {
-      osStatus = `User lookup failed: ${getErrorMessage(error)}`
-    }
-  }
-
-  const fetchVersion = async () => {
-    osStatus = 'Fetching version...'
-    try {
-      const version = await puter.os.version()
-      versionInfo = version
-      osStatus = 'Version loaded'
-    } catch (error) {
-      osStatus = `Version lookup failed: ${getErrorMessage(error)}`
-    }
-  }
-
-  // UI picker
-  let uiResult = 'No UI actions yet'
-  const openFile = async () => {
-    try {
-      const result = await puter.ui.showOpenFilePicker({ multiple: false })
-      const file = Array.isArray(result) ? result[0] : result
-      uiResult = file ? `Selected file: ${file.name || file.path || 'unknown'}` : 'No file selected'
-    } catch (error) {
-      uiResult = `File picker failed: ${getErrorMessage(error)}`
-    }
-  }
-
-  // AI chat
-  let aiInput = 'What can you do?'
-  let aiStatus = 'Idle'
-  let aiHistory: { user: string; ai: string }[] = []
-  let aiLoading = false
-
-  const sendChat = async () => {
-    if (!aiInput.trim() || aiLoading) return
-    aiLoading = true
-    aiStatus = 'Sending to Puter AI...'
-    try {
-      const response = await puter.ai.chat(aiInput)
-      const text = extractText(response)
-      aiHistory = [...aiHistory, { user: aiInput.trim(), ai: text }]
-      aiInput = ''
-      aiStatus = 'Reply received'
-    } catch (error) {
-      aiStatus = `Error: ${getErrorMessage(error)}`
-    } finally {
-      aiLoading = false
-    }
   }
 
   // BDEW
@@ -213,126 +92,7 @@
   </nav>
 
   <main class="tab-panel">
-    {#if activeTab === 'kv'}
-      <section class="card stack">
-        <div class="stack">
-          <h2>Puter KV Store</h2>
-          <a href="https://docs.puter.com/KV/" target="_blank" rel="noreferrer">KV documentation</a>
-        </div>
-        <div class="counter-row">
-          <button disabled={kvCount === undefined} on:click={decrementKv}>-</button>
-          <span class="counter-value">{kvCount !== undefined ? kvCount : 'loading...'}</span>
-          <button disabled={kvCount === undefined} on:click={incrementKv}>+</button>
-        </div>
-        <p class="status">
-          This counter is stored in Puter KV as <code>testCounter</code>.
-        </p>
-      </section>
-    {:else if activeTab === 'fs'}
-      <section class="card stack">
-        <div class="stack">
-          <h2>Puter File System</h2>
-          <p>
-            Creates and reads a sample file at <code>{demoPath}</code>. Uses your app data folder when available.
-          </p>
-        </div>
-
-        <div class="actions">
-          <button on:click={writeFile}>Write file</button>
-          <button on:click={readFile}>Read file</button>
-        </div>
-
-        <p class="status">Status: {fsStatus}</p>
-
-        {#if fsContents}
-          <div class="callout">
-            <strong>File contents</strong>
-            <pre>{fsContents}</pre>
-          </div>
-        {/if}
-      </section>
-    {:else if activeTab === 'os'}
-      <section class="card stack">
-        <div class="stack">
-          <h2>Puter OS</h2>
-          <p>Fetches the current user and OS version metadata from Puter.</p>
-        </div>
-
-        <div class="actions">
-          <button on:click={fetchUser}>Get current user</button>
-          <button on:click={fetchVersion}>Get OS version</button>
-        </div>
-
-        <p class="status">Status: {osStatus}</p>
-
-        {#if userInfo}
-          <div class="callout">
-            <strong>User info</strong>
-            <pre>{formatJSON(userInfo)}</pre>
-          </div>
-        {/if}
-
-        {#if versionInfo}
-          <div class="callout">
-            <strong>Version info</strong>
-            <pre>{formatJSON(versionInfo)}</pre>
-          </div>
-        {/if}
-      </section>
-    {:else if activeTab === 'ai'}
-      <section class="card stack">
-        <div class="stack">
-          <h2>Puter AI Chat</h2>
-          <p>
-            Send a short prompt to <code>puter.ai.chat</code> and see the reply.
-          </p>
-        </div>
-
-        <div class="chat-box">
-          <textarea rows="3" bind:value={aiInput} placeholder="Ask Puter AI anything..."></textarea>
-          <div class="actions">
-            <button disabled={aiLoading || !aiInput.trim()} on:click={sendChat}>
-              {aiLoading ? 'Sending...' : 'Send message'}
-            </button>
-            <span class="status">Status: {aiStatus}</span>
-          </div>
-        </div>
-
-        {#if aiHistory.length > 0}
-          <div class="callout">
-            <strong>Conversation</strong>
-            <div class="chat-history">
-              {#each aiHistory as turn, idx}
-                <div class="chat-turn" data-key={idx}>
-                  <div class="chat-label">You</div>
-                  <div class="chat-bubble">{turn.user}</div>
-                  <div class="chat-label">Puter AI</div>
-                  <div class="chat-bubble alt">{turn.ai}</div>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      </section>
-    {:else if activeTab === 'ui'}
-      <section class="card stack">
-        <div class="stack">
-          <h2>Puter UI</h2>
-          <p>
-            Single-file picker example using <code>puter.ui.showOpenFilePicker</code>.
-          </p>
-        </div>
-
-        <div class="actions">
-          <button on:click={openFile}>Open file picker</button>
-        </div>
-
-        <div class="callout">
-          <strong>Last UI result</strong>
-          <p>{uiResult}</p>
-        </div>
-      </section>
-    {:else if activeTab === 'bdew'}
+    {#if activeTab === 'bdew'}
       <section class="card stack">
         <div class="stack">
           <h2>Parse BDEW EBD</h2>
