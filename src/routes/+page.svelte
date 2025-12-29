@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import puter from '@heyputer/puter.js'
-  import { handleWordFile, type EbdTitle } from '../lib/bdewEBD';
+  import { handleWordFile, type EbdTitle, type CheckStep } from '../lib/bdewEBD';
 
   type TabId = 'kv' | 'fs' | 'os' | 'ai' | 'ui' | 'bdew'
 
@@ -17,7 +17,10 @@
   ]
 
   const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
-  const formatJSON = (data: Record<string, unknown>) => JSON.stringify(data, null, 2)
+  const formatJSON = (data: Record<string, unknown> | any[] | string) => {
+    if (typeof data === 'string') return data;
+    return JSON.stringify(data, null, 2)
+  };
   const extractText = (response: unknown): string => {
     if (!response || typeof response !== 'object') return 'No response received.'
     const maybe = response as { message?: { content?: unknown } }
@@ -149,6 +152,9 @@
   // BDEW
   let bdewStatus = 'Idle'
   let ebdTitles: EbdTitle[] = []
+  let allCheckSteps: Record<string, CheckStep[]> = {};
+  let selectedEbdParaId: string = '';
+  let selectedCheckSteps: CheckStep[] = [];
 
   const handleFileUpload = async (event: Event) => {
     const target = event.target as HTMLInputElement
@@ -160,11 +166,28 @@
 
     bdewStatus = 'Reading file...'
     const result = await handleWordFile(file);
-    if (Array.isArray(result)) {
-      ebdTitles = result;
-      bdewStatus = JSON.stringify(result, null, 2);
-    } else {
+    if (typeof result === 'string') {
       bdewStatus = result;
+      ebdTitles = [];
+      allCheckSteps = {};
+      selectedEbdParaId = '';
+      selectedCheckSteps = [];
+    } else {
+      ebdTitles = result.ebdTitles;
+      allCheckSteps = result.checkSteps;
+      bdewStatus = `Successfully parsed ${ebdTitles.length} EBD titles.`;
+      if (ebdTitles.length > 0) {
+        selectedEbdParaId = ebdTitles[0].paraId;
+      }
+    }
+  };
+
+  // Reactive statement to update selectedCheckSteps when selectedEbdParaId changes
+  $: {
+    if (selectedEbdParaId && allCheckSteps[selectedEbdParaId]) {
+      selectedCheckSteps = allCheckSteps[selectedEbdParaId];
+    } else {
+      selectedCheckSteps = [];
     }
   }
 </script>
@@ -318,7 +341,27 @@
         <div class="actions">
           <input type="file" accept=".docx" on:change={handleFileUpload} />
         </div>
+        {#if ebdTitles.length > 0}
+          <div class="stack">
+            <label for="ebd-select">Select EBD Title:</label>
+            <select id="ebd-select" bind:value={selectedEbdParaId}>
+              {#each ebdTitles as title}
+                <option value={title.paraId}>{title.title}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
         <p class="status">Status: {bdewStatus}</p>
+        {#if selectedCheckSteps.length > 0}
+          <div class="callout">
+            <strong>Check Steps for selected EBD Title:</strong>
+            <pre>{formatJSON(selectedCheckSteps)}</pre>
+          </div>
+        {:else if selectedEbdParaId}
+          <div class="callout">
+            <strong>No Check Steps found for selected EBD Title.</strong>
+          </div>
+        {/if}
       </section>
     {/if}
   </main>

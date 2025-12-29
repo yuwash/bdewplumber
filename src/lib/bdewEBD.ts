@@ -1,7 +1,7 @@
 import * as fflate from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
 
-export async function handleWordFile(file: File): Promise<EbdTitle[] | string> {
+export async function handleWordFile(file: File): Promise<{ ebdTitles: EbdTitle[], checkSteps: Record<string, CheckStep[]> } | string> {
   try {
     const buffer = await file.arrayBuffer();
     const decompressed = fflate.unzipSync(new Uint8Array(buffer));
@@ -9,7 +9,13 @@ export async function handleWordFile(file: File): Promise<EbdTitle[] | string> {
     if (documentXml) {
       const xmlContent = new TextDecoder().decode(documentXml);
       const ebdTitles = extractEbdTitlesWithParser(xmlContent);
-      return ebdTitles;
+      const allCheckSteps: Record<string, CheckStep[]> = {};
+      
+      for (const ebdTitle of ebdTitles) {
+        allCheckSteps[ebdTitle.paraId] = extractCheckSteps(xmlContent, ebdTitle);
+      }
+
+      return { ebdTitles, checkSteps: allCheckSteps };
     } else {
       return 'File does not contain word/document.xml';
     }
