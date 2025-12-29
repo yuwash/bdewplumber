@@ -19,123 +19,108 @@ export async function handleWordFile(file: File): Promise<string> {
 }
 
 export type EbdTitle = {
-  id: string;
   title: string;
-  basedOn?: string;
-  role?: string;
+  role: string;
+  paraId: string;
 };
 
 export function extractEbdTitlesWithParser(xml: string): EbdTitle[] {
+  const results: EbdTitle[] = [];
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
     textNodeName: '#text',
-    arrayMode: true,
-    trimNodeName: false
+    arrayMode: true
   });
+
+  // Haupt-Anker: Die Rolle in der Tabelle
+  const roleRegex = /<w:t>Prüfende Rolle:?\s*(NB|LF|MSB|BIKO|BTR)<\/w:t>/gi;
+  const styleMarker = 'w:val="berschrift3"'; // "Ü" weggelassen für Robustheit
   
-  let doc;
-  try {
-    doc = parser.parse(xml);
-  } catch (e) {
-    console.error('XML Parse Error:', e);
-    return [];
-  }
+  let match;
+  while ((match = roleRegex.exec(xml)) !== null) {
+    const roleText = match[1];
+    const rolePos = match.index;
 
-  const ebdMatches: EbdTitle[] = [];
-  let lastEbdId: string | null = null;
+    // 1. Tabellenbeginn vor der Rolle finden
+    const tableStart = xml.lastIndexOf('<w:tbl', rolePos);
+    if (tableStart === -1) continue;
 
-  function extractAllTexts(obj: any): {text: string, isPara: boolean}[] {
-    const results: {text: string, isPara: boolean}[] = [];
-    
-    function traverse(current: any, inPara: boolean = false) {  // *** FIX: Parameter default
-      if (Array.isArray(current)) {
-        current.forEach(item => traverse(item, inPara));
-        return;
-      }
-      
-      if (!current || typeof current !== 'object') return;
-      
-      // *** FIX: inPara-Tracking vereinfacht ***
-      let currentInPara = inPara;
-      
-      // Paragraph-Start
-      if (current['w:p']) {
-        currentInPara = true;
-        traverse(current['w:p'], currentInPara);
-        return;
-      }
-      
-      // Text-Extraktion
-      if (current['w:t']) {
-        let text = '';
-        const wt = current['w:t'];
-        
-        if (typeof wt === 'string') {
-          text = wt;
-        } else if (wt && typeof wt === 'object' && wt['#text']) {
-          text = String(wt['#text']);
-        } else if (Array.isArray(wt)) {
-          text = wt.map(t => String(t?.['#text'] || t || '')).join(' ').trim();
-        }
-        
-        if (text) {
-          results.push({ text: text.trim(), isPara: currentInPara });
-        }
-        return;
-      }
-      
-      // Rekursion in Kinder (r, tc, tr, tbl)
-      Object.values(current).forEach(val => {
-        traverse(val, currentInPara);
-      });
+    // 2. Suche rückwärts nach der nächsten Überschrift 3
+    const headingStylePos = xml.lastIndexOf(styleMarker, tableStart);
+    if (headingStylePos === -1) {
+        console.warn(`Keine Überschrift 3 vor Rolle "${roleText}" bei Position ${rolePos} gefunden.`);
+        continue;
     }
+
+    // 3. Den umschließenden Absatz <w:p>...</w:p> der Überschrift finden
+    // Suche nach "<w:p " oder "<w:p>" um Verwechslungen mit "<w:pStyle" zu vermeiden
+    let paraStart = xml.lastIndexOf('<w:p ', headingStylePos);
+    if (paraStart === -1) {
+        paraStart = xml.lastIndexOf('<w:p>', headingStylePos);
+    }
+    const paraEnd = xml.indexOf('</w:p>', headingStylePos);
+
+    if (paraStart === -1 || paraEnd === -1) continue;
+
+    const paraXml = xml.substring(paraStart, paraEnd + 6);
     
-    traverse(doc);
-    return results;
+    let title = "Titel nicht lesbar";
+    try {
+      const parsedPara = parser.parse(paraXml);
+      title = extractTextFromParsedObject(parsedPara).replace(/\s+/g, ' ').trim();
+    } catch (e) {
+      console.warn("Parser-Fehler bei Überschrift-Absatz nahe Position", paraXml);
+    }
+
+    // 4. Die paraId der Tabellenzeile extrahieren (Bereich der Rolle)
+    // Wir nehmen die paraId direkt aus dem XML-Segment der Rollen-Zelle
+    const searchAreaParaId = xml.substring(tableStart, rolePos + 100); 
+    const paraIdMatch = [...searchAreaParaId.matchAll(/w14:paraId="([^"]+)"/g)].pop();
+    const paraId = paraIdMatch ? paraIdMatch[1] : 'n/a';
+
+    results.push({
+      title,
+      role: roleText.toUpperCase(),
+      paraId
+    });
+  }
+  return results;
+}
+
+/**
+ * Extrahiert NUR Texte aus w:t Elementen und ignoriert Attribute sowie Metadaten.
+ */
+function extractTextFromParsedObject(obj: any): string {
+  if (!obj || typeof obj !== 'object') return "";
+
+  let text = "";
+
+  // Falls es ein Array ist (kommt bei w:r oder w:t oft vor), rekursiv durchlaufen
+  if (Array.isArray(obj)) {
+    return obj.map(item => extractTextFromParsedObject(item)).join("");
   }
 
-  const allTexts = extractAllTexts(doc);
-
-  // Sequenzielle Verarbeitung wie Regex-Version
-  let currentPara = '';
-  allTexts.forEach(({text, isPara}) => {
-    if (isPara) {
-      const paraText = (currentPara + ' ' + text).trim().replace(/\s+/g, ' ');
-      currentPara = '';
-
-      // EBD-Titel
-      const ebdMatch = paraText.match(/^E_(\d{4})_(.+)/i);
-      if (ebdMatch) {
-        const id = `E_${ebdMatch[1].padStart(4, '0')}`;
-        if (ebdMatches.some(e => e.id === id)) return;
-        
-        let title = ebdMatch[2].slice(0, 120);
-        if (title.length < 10 || !title.match(/prüf|prf|storn|best|markt|abgleichen/i)) return;
-
-        const basedOnMatch = paraText.match(/Basiert auf Strom EBD[,:]\s*E_(\d{4})_/i);
-        const basedOn = basedOnMatch ? `E_${basedOnMatch[1].padStart(4, '0')}` : undefined;
-
-        ebdMatches.push({ id, title, basedOn });
-        lastEbdId = id;
-        return;
-      }
-
-      // Rolle
-      if (lastEbdId && paraText) {
-        const roleMatch = paraText.match(/Pr[üu]fende\s+Rolle[,:]\s*(NB|LF|MSB|BIKO|BTR)/i);
-        if (roleMatch) {
-          const ebd = ebdMatches.find(e => e.id === lastEbdId);
-          if (ebd) {
-            ebd.role = roleMatch[1].toUpperCase();
-            lastEbdId = null;
-          }
-        }
-      }
-    } else {
-      currentPara += ' ' + text;
+  // GEZIELTE SUCHE:
+  // 1. Wenn wir direkt ein w:t finden
+  if (obj['w:t']) {
+    const wt = obj['w:t'];
+    // w:t kann ein String, ein Array von Strings oder ein Objekt mit #text sein
+    if (typeof wt === 'string') {
+      text += wt;
+    } else if (Array.isArray(wt)) {
+      text += wt.map(t => (typeof t === 'string' ? t : t['#text'] || '')).join("");
+    } else if (wt && wt['#text']) {
+      text += wt['#text'];
+    }
+  } 
+  
+  // 2. Weitersuchen in Unterelementen, aber Attribute (@_) ignorieren
+  Object.keys(obj).forEach(key => {
+    if (key !== 'w:t' && !key.startsWith('@_')) {
+      text += extractTextFromParsedObject(obj[key]);
     }
   });
 
-  return ebdMatches.sort((a, b) => a.id.localeCompare(b.id));
+  return text;
 }
