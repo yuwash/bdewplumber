@@ -1,7 +1,7 @@
 import * as fflate from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
 
-export async function handleWordFile(file: File): Promise<string> {
+export async function handleWordFile(file: File): Promise<EbdTitle[] | string> {
   try {
     const buffer = await file.arrayBuffer();
     const decompressed = fflate.unzipSync(new Uint8Array(buffer));
@@ -9,7 +9,7 @@ export async function handleWordFile(file: File): Promise<string> {
     if (documentXml) {
       const xmlContent = new TextDecoder().decode(documentXml);
       const ebdTitles = extractEbdTitlesWithParser(xmlContent);
-      return JSON.stringify(ebdTitles, null, 2);
+      return ebdTitles;
     } else {
       return 'File does not contain word/document.xml';
     }
@@ -107,7 +107,7 @@ function extractTextFromParsedObject(obj: any): string {
     } else {
       text += (typeof wt === 'object' ? wt['#text'] || '' : String(wt));
     }
-  } 
+  }
   
   // Rekursion für Kinder, Attribute ignorieren
   Object.keys(obj).forEach(key => {
@@ -178,4 +178,3 @@ export function extractCheckSteps(xml: string, ebd: EbdTitle): CheckStep[] {
 
   return checkSteps;
 }
-

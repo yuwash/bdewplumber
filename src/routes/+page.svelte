@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import puter from '@heyputer/puter.js'
-  import { handleWordFile } from '../lib/bdewEBD';
+  import { handleWordFile, type EbdTitle } from '../lib/bdewEBD';
 
   type TabId = 'kv' | 'fs' | 'os' | 'ai' | 'ui' | 'bdew'
 
@@ -148,6 +148,8 @@
 
   // BDEW
   let bdewStatus = 'Idle'
+  let ebdTitles: EbdTitle[] = []
+
   const handleFileUpload = async (event: Event) => {
     const target = event.target as HTMLInputElement
     const file = target.files?.[0]
@@ -157,7 +159,13 @@
     }
 
     bdewStatus = 'Reading file...'
-    bdewStatus = await handleWordFile(file)
+    const result = await handleWordFile(file);
+    if (Array.isArray(result)) {
+      ebdTitles = result;
+      bdewStatus = JSON.stringify(result, null, 2);
+    } else {
+      bdewStatus = result;
+    }
   }
 </script>
 
