@@ -16,6 +16,20 @@ npm run dev
 npm run dev -- --open
 ```
 
+When working with the big docx file (19 MB) it may make sense to extract relevant parts to supply to LLM.
+
+```sh
+$ grep -aob E_1020_Prüfen, document.xml | cut -d: -f1
+1077304
+18526146
+```
+
+It typically finds two results as the first one is in the table of conteents, so take the second, and include 1 kB before and 128 kB total (in this case perhaps more than necessary).
+
+```sh
+tail -c +$((18526146 - 1024)) document.xml | head -c 131072 > document-e_1020.xml
+```
+
 ## Building
 
 To create a production version of your app:
