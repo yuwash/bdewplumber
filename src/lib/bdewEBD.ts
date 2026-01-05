@@ -149,6 +149,7 @@ export function extractCheckSteps(xml: string, ebd: EbdTitle): CheckStep[] {
   });
 
   const checkSteps: CheckStep[] = [];
+  let currentCheckStep: CheckStep | null = null;
 
   // 1. Tabelle im XML finden via paraId
   const idMarker = `w14:paraId="${ebd.paraId}"`;
@@ -171,19 +172,71 @@ export function extractCheckSteps(xml: string, ebd: EbdTitle): CheckStep[] {
       const row = rows[i];
       const cells = row['w:tc'] || [];
 
-      if (cells.length >= 2) {
-        const nrText = extractTextFromParsedObject(cells[0]).trim();
-        const descText = extractTextFromParsedObject(cells[1]).trim();
+      // Ensure we have at least 4 cells to process for stepNr, description, result description, and result code
+      if (cells.length >= 4) {
+        const stepNrText = extractTextFromParsedObject(cells[0]).trim();
+        const stepDescriptionText = extractTextFromParsedObject(cells[1]).trim();
+        const resultDescriptionText = extractTextFromParsedObject(cells[2]).trim(); // Third column for Prüfergebnis description
+        const resultCodeText = extractTextFromParsedObject(cells[3]).trim(); // Fourth column for Code
 
-        // Nur hinzufügen, wenn entweder eine Nummer oder eine Beschreibung existiert
-        if (nrText || descText) {
-          checkSteps.push({
-            stepNr: nrText,
-            description: descText
-          });
+        // If a new step number is found, finalize the previous one and start a new one
+        if (stepNrText) {
+          if (currentCheckStep) {
+            checkSteps.push(currentCheckStep);
+          }
+          currentCheckStep = {
+            stepNr: stepNrText,
+            description: stepDescriptionText,
+            results: []
+          };
+          // If there's a result description and code in the same row as a new step number, add it
+          if (resultDescriptionText || resultCodeText) {
+            currentCheckStep.results.push({
+              description: resultDescriptionText,
+              code: resultCodeText
+            });
+          }
+        } else if (currentCheckStep) {
+          // If no new step number, but we are within an existing step
+          // Check if the current row contains a check result (description and/or code)
+          if (resultDescriptionText || resultCodeText) {
+            currentCheckStep.results.push({
+              description: resultDescriptionText,
+              code: resultCodeText
+            });
+          } else if (stepDescriptionText) {
+            // If the third and fourth columns are empty but the second column has text,
+            // it might be a continuation of the step description.
+            // This is a less common case, but we can append it if needed.
+            // For now, we prioritize results in columns 3 and 4.
+            // If you need to handle this, you might append to currentCheckStep.description
+            // or create a new result with an empty code.
+          }
+        }
+      } else if (cells.length === 3 && currentCheckStep) {
+        // Handle cases where there might be only 3 cells, and the third cell
+        // contains the code, and the description might be implied or in the previous row.
+        // This is a heuristic and might need adjustment based on actual document structure.
+        const resultCodeText = extractTextFromParsedObject(cells[2]).trim();
+        if (resultCodeText) {
+          // If the last result has no code, assign it here. Otherwise, create a new one.
+          if (currentCheckStep.results.length > 0 && !currentCheckStep.results[currentCheckStep.results.length - 1].code) {
+            currentCheckStep.results[currentCheckStep.results.length - 1].code = resultCodeText;
+          } else {
+            currentCheckStep.results.push({
+              description: '', // Assuming no explicit description in this case
+              code: resultCodeText
+            });
+          }
         }
       }
     }
+
+    // Add the last check step if it exists
+    if (currentCheckStep) {
+      checkSteps.push(currentCheckStep);
+    }
+
   } catch (e) {
     console.error(`Fehler beim Extrahieren der Schritte für ${ebd.title}:`, e);
   }
