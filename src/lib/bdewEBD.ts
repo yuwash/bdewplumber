@@ -125,9 +125,15 @@ function extractTextFromParsedObject(obj: any): string {
   return text;
 }
 
+export type CheckResult = {
+  description: string;
+  code: string;
+};
+
 export type CheckStep = {
   stepNr: string;
   description: string;
+  results: CheckResult[];
 };
 
 /**
