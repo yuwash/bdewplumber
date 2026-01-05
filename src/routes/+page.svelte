@@ -101,6 +101,7 @@
         <div class="actions">
           <input type="file" accept=".docx" on:change={handleFileUpload} />
         </div>
+        <p class="status">Status: {bdewStatus}</p>
         {#if ebdTitles.length > 0}
           <div class="stack">
             <label for="ebd-select">Select EBD Title:</label>
@@ -111,7 +112,6 @@
             </select>
           </div>
         {/if}
-        <p class="status">Status: {bdewStatus}</p>
         {#if selectedCheckSteps.length > 0}
           <div class="callout">
             <strong>Check Steps for selected EBD Title:</strong>
