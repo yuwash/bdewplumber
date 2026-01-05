@@ -121,6 +121,10 @@
         <div class="stack">
           <h2>Parse BDEW EBD</h2>
           <p>Parse BDEW EBD files.</p>
+          <p>
+            Get the Word file of Entscheidungsbaumdiagramme from
+            <a href="https://bdew-mako.de">BDEW-Mako</a>.
+          </p>
         </div>
         <div class="actions">
           <input type="file" accept=".docx" on:change={handleFileUpload} />
