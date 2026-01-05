@@ -34,6 +34,7 @@
   let allCheckSteps: Record<string, CheckStep[]> = {};
   let selectedEbdParaId: string = '';
   let selectedCheckSteps: CheckStep[] = [];
+  let uploadedFileName: string = ''; // To store the uploaded file name
 
   const handleFileUpload = async (event: Event) => {
     const target = event.target as HTMLInputElement
@@ -42,6 +43,8 @@
       bdewStatus = 'No file selected'
       return
     }
+
+    uploadedFileName = file.name; // Store the file name
 
     bdewStatus = 'Reading file...'
     const result = await handleWordFile(file);
@@ -59,6 +62,27 @@
         selectedEbdParaId = ebdTitles[0].paraId;
       }
     }
+  };
+
+  const downloadAllCheckSteps = () => {
+    if (Object.keys(allCheckSteps).length === 0) {
+      alert('No check steps to download.');
+      return;
+    }
+
+    const jsonContent = JSON.stringify(allCheckSteps, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    // Derive filename from uploaded file, replace .docx with .json
+    const baseName = uploadedFileName.replace(/\.docx$/i, '');
+    link.download = `${baseName}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Reactive statement to update selectedCheckSteps when selectedEbdParaId changes
@@ -104,6 +128,9 @@
         <p class="status">Status: {bdewStatus}</p>
         {#if ebdTitles.length > 0}
           <div class="stack">
+            <div class="actions">
+              <button on:click={downloadAllCheckSteps}>Download all</button>
+            </div>
             <label for="ebd-select">Select EBD Title:</label>
             <select id="ebd-select" bind:value={selectedEbdParaId}>
               {#each ebdTitles as title}
