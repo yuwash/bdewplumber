@@ -70,7 +70,18 @@
       return;
     }
 
-    const jsonContent = JSON.stringify(allCheckSteps, null, 2);
+    // Restructure the data for download
+    const structuredData: Record<string, { title: string; steps: CheckStep[] }> = {};
+    ebdTitles.forEach(titleInfo => {
+      if (allCheckSteps[titleInfo.paraId]) {
+        structuredData[titleInfo.paraId] = {
+          title: titleInfo.title,
+          steps: allCheckSteps[titleInfo.paraId]
+        };
+      }
+    });
+
+    const jsonContent = JSON.stringify(structuredData, null, 2);
     const blob = new Blob([jsonContent], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
